@@ -119,7 +119,6 @@ Redirect only upon explicit command: Do not reject or redirect questions concern
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Hugging Face API error: ${response.status} - ${errorText}`);
-
       return NextResponse.json({
         content: `Błąd API: ${response.status}. Spróbuj ponownie za chwilę.`,
       });
