@@ -1,86 +1,144 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { PromptInputWithActions } from "@/prompt-input-with-actions"
+import { ConversationWithActions } from "@/conversation-with-actions"
+import { ModelSelector } from "@/components/model-selector"
+import { useState, useCallback } from "react"
+import Image from "next/image"
+
+const models = [
+  { id: "qwen/qwq-32b:free", name: "Qwen QwQ 32B", provider: "Qwen" },
+  { id: "qwen/qwen3-30b-a3b:free", name: "Qwen 3 30B", provider: "Qwen" },
+  { id: "meta-llama/llama-4-scout:free", name: "Llama 4 Scout", provider: "Meta" },
+  { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1", provider: "DeepSeek" },
+]
 
 export default function Page() {
-  const [messages, setMessages] = useState<{text: string, sender: "user" | "bot"}[]>([])
-  const [input, setInput] = useState("")
+  const [messages, setMessages] = useState<
+    Array<{
+      id: number
+      role: "user" | "assistant"
+      content: string
+      reasoning?: string
+      fallback?: boolean
+    }>
+  >([])
+  const [showConversation, setShowConversation] = useState(false)
+  const [selectedModel, setSelectedModel] = useState(models[0])
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSend = () => {
-    if (!input.trim()) return
-    
-    setMessages(prev => [...prev, {
-      text: input,
-      sender: "user"
-    }])
-    setInput("")
+  const addMessage = useCallback(
+    async (content: string) => {
+      if (!content.trim() || isLoading) return
+
+      const userMessageId = Date.now()
+      const newUserMessage = {
+        id: userMessageId,
+        role: "user" as const,
+        content: content.trim(),
+      }
+
+      setMessages((prev) => [...prev, newUserMessage])
+      setShowConversation(true)
+      setIsLoading(true)
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: content.trim(),
+            model: selectedModel.id,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (!data.content) {
+          throw new Error("No content received from API")
+        }
+
+        const assistantMessage = {
+          id: userMessageId + 1,
+          role: "assistant" as const,
+          content: data.content,
+          reasoning: data.reasoning || `Generated using ${selectedModel.name}`,
+          fallback: data.fallback || false,
+        }
+
+        setMessages((prev) => [...prev, assistantMessage])
+      } catch (error) {
+        console.error("Error generating response:", error)
+        const errorMessage = {
+          id: userMessageId + 1,
+          role: "assistant" as const,
+          content: "Przepraszam, wystąpił błąd podczas przetwarzania Twojego zapytania. Spróbuj ponownie.",
+          reasoning: "Error occurred during API request",
+          fallback: true,
+        }
+        setMessages((prev) => [...prev, errorMessage])
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [isLoading, selectedModel],
+  )
+
+  if (showConversation) {
+    return (
+      <div className="flex h-screen w-full flex-col bg-background">
+        {/* Header with model selector */}
+        <header className="flex items-center justify-between px-6 py-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="relative">
+            <ModelSelector
+              value={selectedModel.id}
+              onValueChange={(value) => {
+                const model = models.find((m) => m.id === value)
+                if (model) setSelectedModel(model)
+              }}
+            />
+          </div>
+        </header>
+
+        <ConversationWithActions messages={messages} />
+        <PromptInputWithActions onSendMessage={addMessage} selectedModel={selectedModel} isLoading={isLoading} />
+      </div>
+    )
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="border-b">
-        <div className="container flex h-14 max-w-screen-2xl items-center px-4">
-          <div className="flex items-center gap-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src="/placeholder-logo.svg" alt="Logo" />
-              <AvatarFallback>UI</AvatarFallback>
-            </Avatar>
-            <h1 className="font-semibold">UI Template</h1>
-          </div>
+    <div className="flex flex-col h-screen w-full bg-background">
+      {/* Header with model selector */}
+      <header className="flex items-center justify-between px-6 py-4">
+        <div className="relative">
+          <ModelSelector
+            value={selectedModel.id}
+            onValueChange={(value) => {
+              const model = models.find((m) => m.id === value)
+              if (model) setSelectedModel(model)
+            }}
+          />
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden">
-        <div className="container h-full max-w-screen-2xl px-4 py-6">
-          <Card className="flex h-[calc(100vh-8rem)] flex-col gap-4 p-4">
-            <ScrollArea className="flex-1 pr-4">
-              <div className="flex flex-col gap-4">
-                {messages.map((message, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-start gap-3 ${
-                      message.sender === "user" ? "flex-row-reverse" : ""
-                    }`}
-                  >
-                    <Avatar>
-                      <AvatarImage 
-                        src={message.sender === "user" ? "/placeholder-user.jpg" : "/placeholder-logo.svg"} 
-                        alt={message.sender} 
-                      />
-                      <AvatarFallback>{message.sender === "user" ? "U" : "B"}</AvatarFallback>
-                    </Avatar>
-                    <div
-                      className={`rounded-lg px-3 py-2 ${
-                        message.sender === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
-                      }`}
-                    >
-                      {message.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-
-            <div className="flex gap-2">
-              <Input
-                placeholder="Type a message..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                className="flex-1"
-              />
-              <Button onClick={handleSend}>Send</Button>
-            </div>
-          </Card>
+      {/* Main content area */}
+      <div className="flex flex-1 items-center justify-center -mt-32">
+        <div className="text-center space-y-6">
+          <div className="flex justify-center mb-6">
+            <Image src="/logo.png" alt="Logo" width={64} height={64} className="opacity-80" />
+          </div>
+          <h1 className="text-2xl font-semibold">Ask Qwen, Know More.</h1>
+          <p className="text-muted-foreground">Choose a model and begin your conversation</p>
         </div>
-      </main>
+      </div>
+
+      <PromptInputWithActions onSendMessage={addMessage} selectedModel={selectedModel} isLoading={isLoading} />
     </div>
   )
 }
