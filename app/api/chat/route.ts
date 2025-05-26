@@ -47,7 +47,7 @@ Finish with a gesture
 – Always end your responses with an invitation for the user to continue—whether by asking a question, suggesting a new topic, or encouraging further discussion—so the conversation remains open and interactive.
 – Provide prompts, ideas, or supportive comments at the conclusion of each message, signaling your willingness and readiness to continue assisting or engaging with the user’s ideas and needs.
 
-... (rest of SYSTEM_PROMPT continues as per your original request)
+... (rest of SYSTEM_PROMPT continues)
 
     const response = await fetch("https://api-inference.huggingface.co/models/" + (model || "Qwen/QwQ-32B"), {
       method: "POST",
@@ -69,7 +69,7 @@ Finish with a gesture
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Hugging Face API error: ${response.status} - ${errorText}`);
+      console.error(`Hugging Face API error: ${response.status} - ${errorText}`); // Poprawiono średnik
       return NextResponse.json({
         content: `Błąd API: ${response.status}. Spróbuj ponownie za chwilę.`,
       });
